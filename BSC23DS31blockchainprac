@@ -1,0 +1,105 @@
+import hashlib
+import time
+import json
+import streamlit as st
+
+class Block:
+    def __init__(self, index, timestamp, data, previous_hash):
+        self.index = index
+        self.timestamp = timestamp
+        self.data = data  # Dictionary containing book issue details
+        self.previous_hash = previous_hash
+        self.hash = self.calculate_hash()
+
+    def calculate_hash(self):
+        block_string = json.dumps({
+            'index': self.index,
+            'timestamp': self.timestamp,
+            'data': self.data,
+            'previous_hash': self.previous_hash
+        }, sort_keys=True).encode()
+
+        return hashlib.sha256(block_string).hexdigest()
+
+class Blockchain:
+    def __init__(self):
+        self.chain = [self.create_genesis_block()]
+
+    def create_genesis_block(self):
+        genesis_data = {
+            'student_name': 'Genesis',
+            'book_title': 'Genesis Book',
+            'issue_date': time.ctime(),
+            'due_date': time.ctime()
+        }
+        return Block(0, time.ctime(), genesis_data, "0")
+
+    def get_latest_block(self):
+        return self.chain[-1]
+
+    def add_block(self, new_data):
+        latest_block = self.get_latest_block()
+        new_block = Block(
+            index=latest_block.index + 1,
+            timestamp=time.ctime(),
+            data=new_data,
+            previous_hash=latest_block.hash
+        )
+        self.chain.append(new_block)
+
+    def is_chain_valid(self):
+        for i in range(1, len(self.chain)):
+            current = self.chain[i]
+            previous = self.chain[i-1]
+
+            if current.hash != current.calculate_hash():
+                return False
+            if current.previous_hash != previous.hash:
+                return False
+        return True
+
+# Initialize blockchain (Session State to persist across Streamlit reruns)
+if 'library_ledger' not in st.session_state:
+    st.session_state.library_ledger = Blockchain()
+
+library_ledger = st.session_state.library_ledger
+
+st.title("📚 Library Book Issue Ledger using Blockchain")
+
+# Sidebar to add new book issue
+st.sidebar.header("Add a New Book Issue")
+
+student_name = st.sidebar.text_input("Student Name")
+book_title = st.sidebar.text_input("Book Title")
+issue_date = st.sidebar.date_input("Issue Date")
+due_date = st.sidebar.date_input("Due Date")
+
+if st.sidebar.button("Add Book Issue"):
+    if student_name and book_title:
+        new_issue = {
+            'student_name': student_name,
+            'book_title': book_title,
+            'issue_date': str(issue_date),
+            'due_date': str(due_date)
+        }
+        library_ledger.add_block(new_issue)
+        st.sidebar.success("✅ Book issue added successfully!")
+    else:
+        st.sidebar.error("❗ Please enter both student name and book title.")
+
+# Main Section: Display Blockchain
+st.header("📖 Library Ledger Blockchain")
+
+for block in library_ledger.chain:
+    with st.expander(f"Block {block.index}"):
+        st.write(f"**Timestamp:** {block.timestamp}")
+        st.json(block.data)
+        st.write(f"**Previous Hash:** {block.previous_hash}")
+        st.write(f"**Hash:** {block.hash}")
+
+# Validate blockchain
+if library_ledger.is_chain_valid():
+    st.success("✅ The Blockchain is valid!")
+else:
+    st.error("❌ The Blockchain is invalid!")
+
